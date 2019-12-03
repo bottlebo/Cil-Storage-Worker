@@ -1,0 +1,6 @@
+{
+  "devel": {
+    "apiUrl": "http://localhost:5000/api/",
+    "swapPath": "D:/silent-notary/CIL/CIL/Cil-core/swap/"
+  }
+}
