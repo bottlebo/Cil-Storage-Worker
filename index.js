@@ -1,18 +1,10 @@
 const fs = require('fs-ext');
-const axios = require('axios');
 const commandLineArgs = require('command-line-args');
 
 const configs = require('./config.json');
 const ApiClient = require('./apiClient');
 let swapPath;
-const blocksFile = 'blocks.dump';
-const blockStateFile = 'blockstate.dump';
-
-const utxosFile = 'utxos.dump';
-const receiptsFile = 'receipts.dump';
-const contractsFile = 'contracts.dump';
-const deleteUtxosFile = 'deleteutxo.dump';
-const removeBlockFile = 'removeblock.dump';
+const _client = new ApiClient(options, config);
 
 let pool = [];
 const optionDefinitions = [
@@ -20,39 +12,38 @@ const optionDefinitions = [
   {name: 'apiUser', alias: 'u', type: String, multiple: false},
   {name: 'apiPassword', alias: 'p', type: String, multiple: false}
 ];
+const actions = [
+  {key: 'blocks', file: 'blocks.dump', apiCall: _client.saveBlocks},
+  {key: 'utxos', file: 'utxos.dump', apiCall: _client.saveUtxos},
+  {key: 'blockstate', file: 'blockstate.dump', apiCall: _client.setBlockState},
+  {key: 'receipts', file: 'receipts.dump', apiCall: _client.saveReceipts},
+  {key: 'contracts', file: 'contracts.dump', apiCall: _client.saveContracts},
+  {key: 'removeBlocks', file: 'removeblock.dump', apiCall: _client.removeBlocks},
+  {key: 'deleteUtxos', file: 'deleteutxo.dump', apiCall: _client.deleteUtxos},
+
+];
 //
 (async () => {
   const options = commandLineArgs(optionDefinitions, {camelCase: true});
 
   const config = options.config ? configs[options.config] : configs['devel'];
-  const _client = new ApiClient(options, config);
 
   swapPath = config['swapPath'];
   process.on('SIGINT', shutdown);
   process.on('SIGTERM', shutdown);
 
   //!!
-  const blocks = read(`./${blocksFile}`);
-
-  if (blocks && blocks.length) {
-    pool['blocks'] = [...blocks];
+  for (const action of actions) {
+    const data = read(`./${action.file}`);
+    if (data && data.length) {
+      pool[action.key] = [...data];
+    }
   }
   while (true) {
-    await sleep(1000);
-    await load('blocks', blocksFile, _client.saveBlocks);
-    await sleep(1000)
-    await load('utxos', utxosFile, _client.saveUtxos);
-    await sleep(1000)
-    await load('blockstate', blockStateFile, _client.setBlockState);
-    await sleep(1000)
-    await load('receipts', receiptsFile, _client.saveReceipts);
-    await sleep(1000)
-    await load('contracts', contractsFile, _client.saveContracts);
-    await sleep(1000)
-    await load('removeBlocks', removeBlockFile, _client.removeBlocks);
-    await sleep(1000)
-    await load('deleteUtxos', deleteUtxosFile, _client.deleteUtxos);
-
+    for (const action of actions) {
+      await sleep(2000);
+      await load(action.key, action.file, action.apiCall);
+    }
   }
 })();
 //
@@ -76,7 +67,7 @@ function read(file) {
     return null;
   }
 }
-async function load(key, file, apiFunc) {
+async function load(key, file, apiCall) {
   let arrData;
   if (pool[key] && pool[key].length) {
     arrData = [...pool[key]];
@@ -86,12 +77,12 @@ async function load(key, file, apiFunc) {
   }
   if (arrData && arrData.length) {
     try {
-      const data = arrData.map(str => JSON.parse(str))
-      await apiFunc(data)
+      const data = arrData.map(str => JSON.parse(str));
+      await apiCall(data);
       pool[key] = [];
     }
     catch (error) {
-      push(key, arrData)
+      push(key, arrData);
       if (error.message)
         console.log(error.message);
       else
@@ -104,8 +95,10 @@ function push(key, data) {
 }
 //
 function shutdown() {
-  if (pool['blocks'] && pool['blocks'].length) {
-    fs.writeFileSync('./blocks.dump', pool['blocks'].join('\n') + '\n');
+  for (const action of actions) {
+    if (pool[action.key] && pool[action.key].length) {
+      fs.writeFileSync(`./${action.file}`, pool[action.key].join('\n') + '\n');
+    }
   }
   console.log('Shutting down');
   process.exit(1);
