@@ -4,6 +4,7 @@ class ApiClient {
   constructor(options, config) {
     axios.defaults.maxContentLength = 60 * 1024 * 1024;
     axios.defaults.baseURL = config.apiUrl;
+    axios.defaults.headers.post['Content-Type'] = 'application/json; charset=utf-8'
     if (options.apiUser && options.apiPassword) {
       const auth = 'Basic ' + new Buffer.from(options.apiUser + ':' + options.apiPassword).toString('base64');
       axios.defaults.headers.common['Authorization'] = auth;
